@@ -1,0 +1,25 @@
+post_install() {
+    /usr/share/kvmd-web-defaults/apply-patches.sh
+    echo ""
+    echo "kvmd-web-defaults: Installed."
+    echo ""
+    echo "Usage: Create /etc/kvmd/web.css with CSS custom properties to set defaults."
+    echo "Example:"
+    echo "  :root {"
+    echo "    --kvm--atx-ask: false;"
+    echo "    --kvm--hid-mouse-squash: false;"
+    echo "    --kvm--stream-mode: webrtc;"
+    echo "    --kvm--page-close-ask: false;"
+    echo "  }"
+    echo ""
+    echo "See /usr/share/kvmd-web-defaults/web.css.example for all available properties."
+    echo ""
+}
+
+post_upgrade() {
+    /usr/share/kvmd-web-defaults/apply-patches.sh
+}
+
+pre_remove() {
+    echo "kvmd-web-defaults: Removing patches. Run 'pacman -S kvmd' to restore original files."
+}

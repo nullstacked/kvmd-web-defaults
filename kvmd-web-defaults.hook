@@ -1,0 +1,10 @@
+[Trigger]
+Type = Package
+Operation = Install
+Operation = Upgrade
+Target = kvmd
+
+[Action]
+Description = Reapplying kvmd-web-defaults patches...
+When = PostTransaction
+Exec = /usr/share/kvmd-web-defaults/apply-patches.sh

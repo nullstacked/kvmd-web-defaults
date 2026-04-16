@@ -1,0 +1,42 @@
+/* /etc/kvmd/web.css - Server-side UI defaults for PiKVM
+ *
+ * Place this file at /etc/kvmd/web.css to set default values for all UI toggles.
+ * Users can still override these in their browser; these just set the initial defaults.
+ *
+ * Available properties (uncomment and set as needed):
+ */
+
+:root {
+    /* ATX */
+    /* --kvm--atx-ask: true; */
+
+    /* HID - Keyboard */
+    /* --kvm--hid-sysrq-ask: true; */
+    /* --kvm--hid-keyboard-bad-link: false; */
+    /* --kvm--hid-keyboard-swap-cc: false; */
+
+    /* HID - Mouse */
+    /* --kvm--hid-mouse-squash: true; */
+    /* --kvm--hid-mouse-reverse-scrolling: false; */
+    /* --kvm--hid-mouse-reverse-panning: false; */
+    /* --kvm--hid-mouse-cumulative-scrolling: false; */
+    /* --kvm--hid-mouse-dot: true; */
+
+    /* HID - Paste */
+    /* --kvm--hid-pak-ask: true; */
+    /* --kvm--hid-pak-secure: false; */
+
+    /* Page */
+    /* --kvm--page-close-ask: true; */
+
+    /* Stream */
+    /* --kvm--stream-orient: 0; */
+    /* --kvm--stream-mic: false; */
+    /* --kvm--stream-cam: false; */
+    /* --kvm--stream-suspend: false; */
+    /* --kvm--stream-mode: janus; */
+
+    /* Switch */
+    /* --kvm--switch-atx-ask: true; */
+    /* --kvm--switch-msd-ask: true; */
+}
