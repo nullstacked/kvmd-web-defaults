@@ -26,7 +26,7 @@ patch_tools_js() {
         return 1
     fi
 
-    if grep -q "config:" "$path" && grep -q "getBool" "$path"; then
+    if grep -q "\.config" "$path" && grep -q "getBool" "$path"; then
         patch_skip "tools.js (config helper)"
         return 0
     fi
@@ -39,11 +39,11 @@ path = "$path"
 with open(path, "r") as f:
     content = f.read()
 
-if "config:" in content and "getBool" in content:
+if ".config" in content and "getBool" in content:
     sys.exit(0)
 
 config_helper = '''
-\tconfig: {
+\tself.config = {
 \t\tget: function(prop, fallback) {
 \t\t\tlet val = getComputedStyle(document.documentElement).getPropertyValue("--" + prop).trim();
 \t\t\tif (val === "" || val === undefined) return fallback;
@@ -56,20 +56,19 @@ config_helper = '''
 \t\t\tif (val === "" || val === undefined) return fallback;
 \t\t\treturn (val === "true" || val === "1" || val === "yes");
 \t\t},
-\t},
+\t};
 '''
 
-# Find the tools export object - look for "export var tools = {" or similar
-# Insert the config block inside the tools object
+# Find the tools constructor — supports both "new function() {" and plain object "{" forms
 import re
 
-# Try to find the tools object opening
-match = re.search(r'(export\s+var\s+tools\s*=\s*\{)', content)
+# Try "new function() {" form first (kvmd 4.x)
+match = re.search(r'(export\s+var\s+tools\s*=\s*new\s+function\(\)\s*\{[^\n]*\n\tvar self = this;)', content)
+if not match:
+    # Try plain object form
+    match = re.search(r'(export\s+var\s+tools\s*=\s*\{)', content)
 if not match:
     match = re.search(r'(var\s+tools\s*=\s*\{)', content)
-if not match:
-    # Try "tools = {"
-    match = re.search(r'(tools\s*=\s*\{)', content)
 
 if match:
     insert_pos = match.end()
@@ -99,17 +98,25 @@ patch_index_html() {
         return 1
     fi
 
-    if grep -q "web.css" "$path"; then
-        patch_skip "index.html (web.css link)"
-        return 0
-    fi
-
     python3 << PYEOF
 path = "$path"
 with open(path, "r") as f:
     content = f.read()
 
-if "web.css" in content:
+# Upgrade old path to new
+if "/etc/kvmd/web.css" in content and "/share/css/user.css" not in content:
+    content = content.replace(
+        '<link rel="stylesheet" href="/etc/kvmd/web.css" onerror="this.remove()">',
+        '<link rel="stylesheet" href="/share/css/user.css" onerror="this.remove()">',
+        1,
+    )
+    with open(path, "w") as f:
+        f.write(content)
+    print("UPGRADED")
+    exit(0)
+
+# Already patched with new path
+if "/share/css/user.css" in content:
     exit(0)
 
 # Insert CSS link after last existing stylesheet link
@@ -117,7 +124,7 @@ last_css = content.rfind('<link rel="stylesheet"')
 if last_css >= 0:
     eol = content.find("\n", last_css)
     if eol >= 0:
-        css_link = '\n\t\t<link rel="stylesheet" href="/etc/kvmd/web.css" onerror="this.remove()">'
+        css_link = '\n\t\t<link rel="stylesheet" href="/share/css/user.css" onerror="this.remove()">'
         content = content[:eol] + css_link + content[eol:]
         with open(path, "w") as f:
             f.write(content)
@@ -299,6 +306,76 @@ PYEOF
 }
 
 # ============================================================
+# Step 4: One-time localStorage defaults reset (main.js)
+# Clears saved UI prefs so server CSS defaults apply.
+# Bump version number to force a new reset.
+# ============================================================
+patch_localstorage_reset() {
+    local path="$JS_DIR/main.js"
+    if [ ! -f "$path" ]; then
+        warn "main.js not found at $path"
+        return 1
+    fi
+
+    python3 << 'PYEOF'
+import re
+import sys
+
+path = "/usr/share/kvmd/web/share/js/kvm/main.js"
+content = open(path).read()
+
+TARGET_VERSION = "4"
+
+new_block = '''export function main() {
+\t// One-time reset: clear saved UI prefs so server CSS defaults apply.
+\t// Bump version number to force a new reset after changing /etc/kvmd/web.css.
+\tif (localStorage.getItem("defaults.version") !== "''' + TARGET_VERSION + '''") {
+\t\t["page.full_tab_stream", "page.close.ask", "stream.suspend", "stream.mode",
+\t\t "stream.orient", "stream.mic", "stream.cam", "hid.mouse.squash",
+\t\t "hid.mouse.reverse_scrolling", "hid.mouse.reverse_panning",
+\t\t "hid.mouse.cumulative_scrolling", "hid.mouse.dot", "hid.keyboard.bad_link",
+\t\t "hid.keyboard.swap_cc", "atx.ask", "hid.sysrq.ask", "hid.pak.ask",
+\t\t "hid.pak.secure", "switch.atx.ask", "switch.msd.ask",
+\t\t "presence.overlay.visible"].forEach(k => localStorage.removeItem(k));
+\t\tlocalStorage.setItem("defaults.version", "''' + TARGET_VERSION + '''");
+\t}'''
+
+# If target version is already in place, skip
+if ('"defaults.version", "' + TARGET_VERSION + '"') in content:
+    print("SKIPPED")
+    sys.exit(0)
+
+# Upgrade path: if an older version of our reset block exists, replace it.
+# Match from "export function main() {" through to the closing brace of our if block.
+pattern = re.compile(
+    r'export function main\(\) \{\s*\n\s*// One-time reset:.*?localStorage\.setItem\("defaults\.version", "\d+"\);\s*\n\s*\}',
+    re.DOTALL,
+)
+m = pattern.search(content)
+if m:
+    content = content[:m.start()] + new_block + content[m.end():]
+    open(path, "w").write(content)
+    print("UPGRADED")
+    sys.exit(0)
+
+# Fresh install path
+if "export function main() {" not in content:
+    print("FAILED: main() not found", file=sys.stderr)
+    sys.exit(1)
+
+content = content.replace("export function main() {", new_block, 1)
+open(path, "w").write(content)
+print("PATCHED")
+PYEOF
+
+    if [ $? -eq 0 ]; then
+        patch_ok "main.js (localStorage reset)"
+    else
+        patch_fail "main.js (localStorage reset)"
+    fi
+}
+
+# ============================================================
 # Main
 # ============================================================
 
@@ -308,5 +385,6 @@ mkdir -p /etc/kvmd
 patch_tools_js || true
 patch_index_html || true
 patch_js_files || true
+patch_localstorage_reset || true
 
 log "Done. Patched=$PATCHED, Skipped=$SKIPPED, Failed=$FAILED"

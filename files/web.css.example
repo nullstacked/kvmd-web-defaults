@@ -33,7 +33,7 @@
     /* --kvm--stream-orient: 0; */
     /* --kvm--stream-mic: false; */
     /* --kvm--stream-cam: false; */
-    /* --kvm--stream-suspend: false; */
+    --kvm--stream-suspend: false;  /* don't suspend stream when tab is inactive */
     /* --kvm--stream-mode: janus; */
 
     /* Switch */
